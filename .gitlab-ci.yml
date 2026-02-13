@@ -17,6 +17,7 @@ variables:
   DOCKER_IMAGE: ${HARBOR_REGISTRY}/olympus/yace
   GOPATH: /builds/go
   GOCACHE: /builds/go/cache
+  GOLANGCI_LINT_CACHE: /builds/go/lint-cache
 
 lint:
   stage: test
