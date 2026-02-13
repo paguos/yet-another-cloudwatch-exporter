@@ -106,3 +106,159 @@ go test -race ./...
 ## Import Ordering
 
 Local imports should use the prefix: `github.com/prometheus-community/yet-another-cloudwatch-exporter`
+
+---
+
+## Fork Maintenance Guide
+
+This repository is a fork of [prometheus-community/yet-another-cloudwatch-exporter](https://github.com/prometheus-community/yet-another-cloudwatch-exporter).
+
+### Remotes
+
+| Remote   | Purpose                                    |
+|----------|--------------------------------------------|
+| `origin` | paguos fork (github.com/paguos/...)        |
+| `deepl`  | Internal DeepL GitLab repository           |
+| `upstream` | Upstream prometheus-community repo (add if missing) |
+
+### Fork-Specific Features
+
+This fork adds **Linked Accounts** support via AWS OAM (Organization Account Manager):
+
+| Feature | Description |
+|---------|-------------|
+| `IncludeLinkedAccounts` | Config field for discovery and custom namespace jobs to include metrics from linked AWS accounts |
+| OAM Client | New client in `pkg/clients/oam/` to resolve linked account aliases |
+| `linkedAccounts` config | Top-level config block for OAM sink identifier and region |
+| `oam-linked-accounts-check` | Utility CLI in `cmd/` for validating OAM configuration |
+
+**Fork commits (on top of upstream):**
+```
+f3f4b95 refactor(config): linked accounts configuration
+d2da2a6 feat: add linked account alias resolution
+9aea4e9 feat(discovery-jobs): support for IncludeLinkedAccounts
+```
+
+### Files Modified by Fork (Conflict Hotspots)
+
+High-conflict risk files when syncing with upstream:
+
+| File | Changes |
+|------|---------|
+| `pkg/config/config.go` | `LinkedAccountsConfig`, `IncludeLinkedAccounts` fields, `toModelConfig()` |
+| `pkg/job/scrape.go` | OAM resolver initialization in `ScrapeAwsData()` |
+| `pkg/model/model.go` | `LinkedAccountID`, `LinkedAccountAlias` fields in structs |
+| `pkg/clients/factory.go` | `GetOAMClient()` interface method |
+| `pkg/job/discovery.go` | `runDiscoveryJob()` signature change |
+| `pkg/job/custom.go` | `runCustomNamespaceJob()` signature change |
+| `pkg/promutil/migrate.go` | Linked account label handling |
+
+**New files added by fork (no conflicts expected):**
+- `cmd/oam-linked-accounts-check/main.go`
+- `pkg/clients/oam/` (entire directory)
+- `pkg/job/linked_account_alias.go`
+- `pkg/job/linked_account_alias_test.go`
+- `pkg/config/testdata/include_linked_accounts.ok.yml`
+
+### Upstream Sync Strategy
+
+#### Initial Setup (One-Time)
+
+```bash
+# Add upstream remote if not present
+git remote add upstream https://github.com/prometheus-community/yet-another-cloudwatch-exporter.git
+git fetch upstream
+```
+
+#### Sync Workflow
+
+**Option A: Rebase (Preferred for clean history)**
+
+```bash
+# Fetch upstream changes
+git fetch upstream
+
+# Checkout your working branch
+git checkout master
+
+# Rebase fork commits on top of upstream
+git rebase upstream/master
+
+# Resolve conflicts in hotspot files (see list above)
+# After resolving each file:
+git add <resolved-file>
+git rebase --continue
+
+# Force push (coordinate with team)
+git push origin master --force-with-lease
+```
+
+**Option B: Merge (Preserves history, creates merge commits)**
+
+```bash
+git fetch upstream
+git checkout master
+git merge upstream/master
+
+# Resolve conflicts
+git add <resolved-files>
+git commit
+
+git push origin master
+```
+
+#### Conflict Resolution Guidelines
+
+1. **`pkg/config/config.go`**: Preserve `LinkedAccountsConfig`, `IncludeLinkedAccounts` fields. Watch for changes to `ScrapeConf` struct and `toModelConfig()` function.
+
+2. **`pkg/model/model.go`**: Keep `LinkedAccountID`, `LinkedAccountAlias` fields in `Metric` and `CloudwatchData` structs. Watch for new upstream fields in same structs.
+
+3. **`pkg/job/scrape.go`**: Our changes are in `ScrapeAwsData()` - look for new parameters or refactored loops. Keep OAM resolver initialization blocks.
+
+4. **`pkg/clients/factory.go`**: Keep `GetOAMClient()` method. Watch for new client methods added upstream.
+
+5. **`pkg/promutil/migrate.go`**: Our changes add linked account labels. Watch for changes to label handling logic.
+
+#### Post-Sync Verification
+
+```bash
+# Ensure code compiles
+make build
+
+# Run linter
+make lint
+
+# Run all tests
+make test
+
+# Verify linked accounts feature works
+go test -v ./pkg/job/... -run LinkedAccount
+go test -v ./pkg/clients/oam/...
+
+# Test with a config that uses linked accounts
+./yace -config.file=pkg/config/testdata/include_linked_accounts.ok.yml
+```
+
+### Keeping Fork Up-to-Date
+
+**Recommended sync frequency:** Monthly, or when upstream releases a new version.
+
+**Before syncing, check upstream for:**
+```bash
+# View upstream commits since last sync
+git log master..upstream/master --oneline
+
+# Check if any high-conflict files were modified
+git diff master..upstream/master --stat | grep -E "(config\.go|scrape\.go|model\.go|factory\.go|migrate\.go)"
+```
+
+### Contributing Back to Upstream
+
+If the linked accounts feature should be contributed upstream:
+
+1. Create a feature branch from upstream/master
+2. Cherry-pick or recreate the fork commits
+3. Open a PR to prometheus-community/yet-another-cloudwatch-exporter
+4. Reference any relevant issues or discussions
+
+After upstream acceptance, the fork can be simplified to track upstream directly.

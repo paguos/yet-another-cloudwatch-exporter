@@ -1,0 +1,53 @@
+include:
+  - project: "deepl/ops/ci-cd-infrastructure/gitlab-ci-lib"
+    file:
+      - "/templates/.buildkit.yml"
+      - "/templates/.semantic-release.yml"
+
+stages:
+  - test
+  - build
+  - release
+
+default:
+  tags:
+    - k8s
+
+variables:
+  DOCKER_IMAGE: ${HARBOR_REGISTRY}/olympus/yace
+
+lint:
+  stage: test
+  image: golangci/golangci-lint:v2.6.0
+  script:
+    - golangci-lint run ./...
+
+test:
+  stage: test
+  image: golang:1.24
+  script:
+    - make test
+
+build:
+  stage: build
+  extends: .buildkit
+  needs: [lint, test]
+  variables:
+    TAG: ${CI_COMMIT_SHA}
+    BUILDKIT_IMAGE: $DOCKER_IMAGE:$TAG
+    BUILDKIT_DOCKERFILE: Dockerfile.ci
+    BUILDKIT_BUILD_ARGS: >-
+      VERSION=$(cat VERSION)
+      REVISION=${CI_COMMIT_SHA}
+      BRANCH=${CI_COMMIT_REF_NAME}
+
+release:
+  stage: release
+  extends: .semantic-release
+  variables:
+    GIT_AUTHOR_NAME: semantic-release
+    GIT_AUTHOR_EMAIL: $SEMANTIC_RELEASE_EMAIL
+    GIT_COMMITTER_NAME: semantic-release
+    GIT_COMMITTER_EMAIL: $SEMANTIC_RELEASE_EMAIL
+  needs:
+    - build

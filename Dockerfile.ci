@@ -1,0 +1,30 @@
+# Stage 1: Build the Go binary
+FROM golang:1.24 AS builder
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+
+ARG VERSION
+ARG REVISION
+ARG BRANCH
+
+RUN CGO_ENABLED=0 go build \
+    -ldflags "\
+      -X github.com/prometheus/common/version.Version=${VERSION} \
+      -X github.com/prometheus/common/version.Revision=${REVISION} \
+      -X github.com/prometheus/common/version.Branch=${BRANCH}" \
+    -o /yace ./cmd/yace
+
+# Stage 2: Final lightweight image
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --from=builder /yace /bin/yace
+
+EXPOSE 5000
+USER nonroot:nonroot
+ENTRYPOINT ["/bin/yace"]
+CMD ["--config.file=/etc/yace/config.yml"]

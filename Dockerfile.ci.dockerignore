@@ -1,0 +1,13 @@
+.git
+.github
+.build
+.envrc
+vendor/
+charts/
+*.md
+Dockerfile
+Jenkinsfile
+docker-compose.yml
+config.yml
+arn-dev.yml
+test.yaml
