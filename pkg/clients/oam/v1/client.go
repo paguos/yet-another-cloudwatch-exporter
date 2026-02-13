@@ -43,7 +43,7 @@ func (c client) ListLinkedAccounts(ctx context.Context, sinkIdentifier string) (
 		SinkIdentifier: &sinkIdentifier,
 	}
 
-	err := c.oamClient.ListAttachedLinksPagesWithContext(ctx, input, func(page *oam.ListAttachedLinksOutput, lastPage bool) bool {
+	err := c.oamClient.ListAttachedLinksPagesWithContext(ctx, input, func(page *oam.ListAttachedLinksOutput, _ bool) bool {
 		for _, item := range page.Items {
 			if item.LinkArn == nil || item.Label == nil {
 				continue
